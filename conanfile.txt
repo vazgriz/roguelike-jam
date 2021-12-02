@@ -1,0 +1,9 @@
+[requires]
+glfw/3.3.5
+sdl/2.0.16
+vulkan-memory-allocator/2.3.0
+entt/3.8.1
+glm/0.9.9.8
+
+[generators]
+cmake
