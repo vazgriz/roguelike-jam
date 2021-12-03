@@ -1,5 +1,4 @@
 #include <iostream>
-#include <sstream>
 
 #include <SimpleEngine/SimpleEngine.h>
 #include <SimpleEngine/RenderGraph/AcquireNode.h>
@@ -8,6 +7,7 @@
 #include <SimpleEngine/FPSCounter.h>
 
 #include "RenderNode.h"
+#include "Tiled/TiledReader.h"
 
 int main() {
     SEngine::Engine engine;
@@ -32,6 +32,8 @@ int main() {
 
     SEngine::FPSCounter fpsCounter(window, "Roguelike");
     engine.addSystem(fpsCounter);
+
+    Tiled map("data/sample_map.json");
 
     engine.run();
 }

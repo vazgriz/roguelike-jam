@@ -64,11 +64,13 @@ target_link_libraries("SimpleEngine"
     CONAN_PKG::vulkan-memory-allocator
     CONAN_PKG::entt
     CONAN_PKG::glm
+    CONAN_PKG::base64
+    CONAN_PKG::zlib
+    CONAN_PKG::nlohmann_json
     ${VULKAN_LIB}
 )
 target_include_directories("SimpleEngine"
   PUBLIC
     "include"
-  PRIVATE
     ${CONAN_INCLUDE_DIRS}
 )
