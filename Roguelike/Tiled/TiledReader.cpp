@@ -21,11 +21,15 @@ Tiled::Tiled(const std::string& path) {
     file >> data;
 
     loadMap(data);
+
+    std::cout << "  Loaded map: " << m_map.width << "x" << m_map.height << ", " << m_map.layers.size() << " layers\n";
 }
 
 void Tiled::loadMap(nlohmann::json& json) {
     m_map.width = json["width"].get<int32_t>();
     m_map.height = json["height"].get<int32_t>();
+    m_map.tileWidth = json["tilewidth"].get<int32_t>();
+    m_map.tileHeight = json["tileheight"].get<int32_t>();
 
     loadTilesets(m_map.tilesets, json["tilesets"]);
     loadLayers(m_map.layers, json["layers"]);
@@ -34,6 +38,19 @@ void Tiled::loadMap(nlohmann::json& json) {
 void Tiled::loadTilesets(std::vector<Tileset>& tilesets, nlohmann::json& json) {
     for (auto& item : json) {
         Tileset tileset = {};
+
+        tileset.name = item["name"].get<std::string>();
+        tileset.columns = item["columns"].get<int32_t>();
+        tileset.firstGID = item["firstgid"].get<int32_t>();
+        tileset.image = item["image"].get<std::string>();
+        tileset.imageWidth = item["imagewidth"].get<int32_t>();
+        tileset.imageHeight = item["imageheight"].get<int32_t>();
+        tileset.margin = item["margin"].get<int32_t>();
+        tileset.spacing = item["spacing"].get<int32_t>();
+        tileset.tileWidth = item["tilewidth"].get<int32_t>();
+        tileset.tileHeight = item["tileheight"].get<int32_t>();
+        tileset.tileCount = item["tilecount"].get<int32_t>();
+
         loadTiles(tileset.tiles, item["tiles"]);
 
         tilesets.push_back(tileset);

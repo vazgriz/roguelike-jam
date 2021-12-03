@@ -82,7 +82,7 @@
         {
          "columns":57,
          "firstgid":1,
-         "image":"..\/Spritesheet\/roguelikeSheet_transparent.png",
+         "image":"data/roguelikeSheet_transparent.png",
          "imageheight":526,
          "imagewidth":968,
          "margin":0,

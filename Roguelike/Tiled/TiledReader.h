@@ -51,7 +51,6 @@ public:
 
     struct Map {
         std::optional<std::string> backgroundColor;
-        int32_t compressionLevel = -1;
         int32_t width;
         int32_t height;
         int32_t tileWidth;
