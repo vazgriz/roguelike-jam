@@ -20,4 +20,4 @@ endfunction()
 
 add_subdirectory("SimpleEngine")
 add_subdirectory("test")
-add_subdirectory("Game")
+add_subdirectory("Roguelike")
