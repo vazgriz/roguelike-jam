@@ -5,6 +5,7 @@
 #include <SimpleEngine/RenderGraph/AcquireNode.h>
 #include <SimpleEngine/RenderGraph/PresentNode.h>
 #include <SimpleEngine/RenderGraph/TransferNode.h>
+#include <SimpleEngine/FPSCounter.h>
 
 #include "RenderNode.h"
 
@@ -28,6 +29,9 @@ int main() {
     renderGraph.addEdge(SEngine::RenderGraph::BufferEdge(transferNode.bufferUsage(), renderNode.bufferUsage()));
 
     renderGraph.bake();
+
+    SEngine::FPSCounter fpsCounter(window, "Hello Triangle");
+    engine.addSystem(fpsCounter);
 
     engine.run();
 }

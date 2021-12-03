@@ -35,3 +35,7 @@ void Window::getSize(int width, int height) {
     m_framebufferWidth = framebufferwidth;
     m_framebufferHeight = framebufferheight;
 }
+
+void Window::setTitle(const std::string& title) {
+    glfwSetWindowTitle(m_window.get(), title.c_str());
+}

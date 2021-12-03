@@ -20,6 +20,8 @@ public:
     int32_t height() const { return m_height; }
     bool shouldClose() const;
 
+    void setTitle(const std::string& title);
+
     entt::sink<void(int32_t, int32_t)>& onResized() { return m_onResized; }
     entt::sink<void(int32_t, int32_t)>& onFramebufferResized() { return m_onFramebufferResized; }
 

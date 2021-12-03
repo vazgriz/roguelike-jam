@@ -38,6 +38,12 @@ target_sources("SimpleEngine"
     "src/Utilities.cpp"
     "include/SimpleEngine/Scene.h"
     "src/Scene.cpp"
+    "include/SimpleEngine/Clock.h"
+    "src/Clock.cpp"
+    "include/SimpleEngine/ISystem.h"
+    "src/ISystem.cpp"
+    "include/SimpleEngine/FPSCounter.h"
+    "src/FPSCounter.cpp"
 )
 
 # Download automatically, you can also just copy the conan.cmake file

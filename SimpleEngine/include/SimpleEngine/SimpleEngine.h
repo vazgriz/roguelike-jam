@@ -6,3 +6,5 @@
 #include <SimpleEngine/Buffer.h>
 #include <SimpleEngine/Utilities.h>
 #include <SimpleEngine/Scene.h>
+#include <SimpleEngine/Clock.h>
+#include <SimpleEngine/ISystem.h>

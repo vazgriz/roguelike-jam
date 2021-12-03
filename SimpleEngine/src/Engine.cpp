@@ -7,6 +7,8 @@
 #include "SimpleEngine/RenderGraph/RenderGraph.h"
 #include "SimpleEngine/Window.h"
 #include "SimpleEngine/Graphics.h"
+#include "SimpleEngine/Clock.h"
+#include "SimpleEngine/ISystem.h"
 
 using namespace SEngine;
 
@@ -28,6 +30,8 @@ Engine::Engine() {
     glfwSetErrorCallback(&handleGLFWError);
 
     glfwInit();
+
+    m_renderClock = std::make_unique<Clock>();
 }
 
 Engine::~Engine() {
@@ -58,11 +62,19 @@ RenderGraph& Engine::getRenderGraph() {
     return *m_renderGraph;
 }
 
+void Engine::addSystem(ISystem& system) {
+    m_renderSystems.push_back(&system);
+}
+
 void Engine::run() {
     if (m_window == nullptr) throw std::runtime_error("Window not set");
     if (m_graphics == nullptr) throw std::runtime_error("Graphics context not set");
     if (m_renderGraph == nullptr) throw std::runtime_error("Render graph not set");
     if (!m_renderGraph->isBaked()) throw std::runtime_error("Render graph not baked");
+
+    std::sort(m_renderSystems.begin(), m_renderSystems.end(), [](const auto& a, const auto& b) {
+        return a->getPriority() < b->getPriority();
+    });
 
     bool shouldRender = true;
 
@@ -75,6 +87,12 @@ void Engine::run() {
 
         if (m_window->shouldClose()) {
             break;
+        }
+
+        m_renderClock->update(static_cast<float>(glfwGetTime()));
+
+        for (auto system : m_renderSystems) {
+            system->update(*m_renderClock);
         }
 
         if (m_graphics->swapchain() != nullptr) {
