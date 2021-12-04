@@ -35,7 +35,7 @@ void Graphics::createInstance(const std::string& appName) {
     m_context = std::make_unique<vk::raii::Context>();
 
     vk::ApplicationInfo appInfo = {};
-    appInfo.apiVersion = VK_MAKE_API_VERSION(1, 2, 0, 0);
+    appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
     appInfo.pApplicationName = appName.c_str();
 
     std::vector<const char*> extensions = {
