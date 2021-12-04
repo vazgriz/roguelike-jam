@@ -44,6 +44,8 @@ target_sources("SimpleEngine"
     "src/ISystem.cpp"
     "include/SimpleEngine/FPSCounter.h"
     "src/FPSCounter.cpp"
+    "include/SimpleEngine/Camera.h"
+    "src/Camera.cpp"
 )
 
 # Download automatically, you can also just copy the conan.cmake file

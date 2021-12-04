@@ -33,7 +33,9 @@ int main() {
     SEngine::FPSCounter fpsCounter(window, "Roguelike");
     engine.addSystem(fpsCounter);
 
+    SEngine::Camera camera(4.0f, 3.0f);
     Tiled map("data/sample_map.json");
+    renderNode.setCamera(camera);
 
     engine.run();
 }

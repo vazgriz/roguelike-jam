@@ -8,3 +8,4 @@
 #include <SimpleEngine/Scene.h>
 #include <SimpleEngine/Clock.h>
 #include <SimpleEngine/ISystem.h>
+#include <SimpleEngine/Camera.h>

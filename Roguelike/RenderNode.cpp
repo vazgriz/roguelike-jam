@@ -1,6 +1,5 @@
 #include "RenderNode.h"
 #include <SimpleEngine/SimpleEngine.h>
-#include <glm/glm.hpp>
 
 struct Vertex {
     glm::vec3 pos;
@@ -28,10 +27,28 @@ RenderNode::RenderNode(SEngine::Engine& engine, SEngine::RenderGraph& graph, SEn
 
     createRenderPass();
     createFramebuffers();
+    createDescriptorLayout();
+    createDescriptorPool();
+    createDescriptor();
+    createUniformBuffer();
+    updateUniformBuffer();
     createPipeline();
     createVertexData();
 
     m_swapchainConnection = engine.getGraphics().onSwapchainChanged().connect<&RenderNode::recreateResources>(this);
+    m_uniform = {};
+}
+
+void RenderNode::setCamera(SEngine::Camera& camera) {
+    m_camera = &camera;
+}
+
+void RenderNode::preRender(uint32_t currentFrame) {
+    if (m_camera != nullptr) {
+        m_uniform.projectionMatrix = m_camera->projection();
+    }
+
+    m_transferNode->transfer(*m_uniformBuffer, sizeof(UniformData), 0, &m_uniform);
 }
 
 void RenderNode::render(uint32_t currentFrame, vk::raii::CommandBuffer& commandBuffer) {
@@ -48,6 +65,7 @@ void RenderNode::render(uint32_t currentFrame, vk::raii::CommandBuffer& commandB
     commandBuffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
 
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **m_pipeline);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, **m_pipelineLayout, 0, *m_descriptor, nullptr);
     commandBuffer.bindVertexBuffers(0, m_vertexBuffer->buffer(), { 0 });
 
     vk::Extent2D extent = m_graphics->swapchainExtent();
@@ -125,6 +143,67 @@ void RenderNode::createFramebuffers() {
 
         m_framebuffers.emplace_back(m_graphics->device(), info);
     }
+}
+
+void RenderNode::createDescriptorLayout() {
+    vk::DescriptorSetLayoutBinding binding = {};
+    binding.descriptorType = vk::DescriptorType::eUniformBuffer;
+    binding.descriptorCount = 1;
+    binding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+    vk::DescriptorSetLayoutCreateInfo info = {};
+    info.bindingCount = 1;
+    info.pBindings = &binding;
+
+    m_descriptorLayout = std::make_unique<vk::raii::DescriptorSetLayout>(m_graphics->device(), info);
+}
+
+void RenderNode::createDescriptorPool() {
+    vk::DescriptorPoolSize poolSize = {};
+    poolSize.descriptorCount = 1;
+    poolSize.type = vk::DescriptorType::eUniformBuffer;
+
+    vk::DescriptorPoolCreateInfo info = {};
+    info.maxSets = 1;
+    info.poolSizeCount = 1;
+    info.pPoolSizes = &poolSize;
+
+    m_descriptorPool = std::make_unique<vk::raii::DescriptorPool>(m_graphics->device(), info);
+}
+
+void RenderNode::createDescriptor() {
+    vk::DescriptorSetAllocateInfo info = {};
+    info.descriptorPool = **m_descriptorPool;
+    info.descriptorSetCount = 1;
+    info.pSetLayouts = &**m_descriptorLayout;
+
+    auto descriptors = (*m_graphics->device()).allocateDescriptorSets(info);
+    m_descriptor = std::make_unique<vk::DescriptorSet>(std::move(descriptors[0]));
+}
+
+void RenderNode::createUniformBuffer() {
+    vk::BufferCreateInfo info = {};
+    info.size = sizeof(UniformData);
+    info.usage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    m_uniformBuffer = std::make_unique<SEngine::Buffer>(*m_engine, info, allocInfo);
+}
+
+void RenderNode::updateUniformBuffer() {
+    vk::DescriptorBufferInfo info = {};
+    info.buffer = m_uniformBuffer->buffer();
+    info.range = m_uniformBuffer->size();
+
+    vk::WriteDescriptorSet write = {};
+    write.descriptorCount = 1;
+    write.descriptorType = vk::DescriptorType::eUniformBuffer;
+    write.dstSet = *m_descriptor;
+    write.pBufferInfo = &info;
+
+    m_graphics->device().updateDescriptorSets(write, nullptr);
 }
 
 vk::raii::ShaderModule RenderNode::createShader(const std::string& filename) {
@@ -211,6 +290,8 @@ void RenderNode::createPipeline() {
     multisample.rasterizationSamples = vk::SampleCountFlagBits::e1;
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {};
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &**m_descriptorLayout;
 
     m_pipelineLayout = std::make_unique<vk::raii::PipelineLayout>(m_graphics->device(), pipelineLayoutInfo);
 
