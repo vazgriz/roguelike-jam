@@ -46,6 +46,9 @@ target_sources("SimpleEngine"
     "src/FPSCounter.cpp"
     "include/SimpleEngine/Camera.h"
     "src/Camera.cpp"
+    "include/SimpleEngine/ImageAsset.h"
+    "src/ImageAsset.cpp"
+    "src/stb.cpp"
 )
 
 # Download automatically, you can also just copy the conan.cmake file
@@ -75,4 +78,5 @@ target_include_directories("SimpleEngine"
   PUBLIC
     "include"
     ${CONAN_INCLUDE_DIRS}
+    "${CMAKE_SOURCE_DIR}/external"
 )

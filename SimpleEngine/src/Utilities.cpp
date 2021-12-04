@@ -1,5 +1,6 @@
 #include "SimpleEngine/Utilities.h"
 #include <fstream>
+#include <stb_image.h>
 
 using namespace SEngine;
 
@@ -20,7 +21,7 @@ std::vector<char> SEngine::readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
-        throw std::runtime_error("Failed to open shader");
+        throw std::runtime_error("Failed to open file");
     }
 
     size_t fileSize = (size_t)file.tellg();
@@ -30,6 +31,22 @@ std::vector<char> SEngine::readFile(const std::string& filename) {
     file.close();
 
     return buffer;
+}
+
+ImageAsset SEngine::readImage(const std::string& filename) {
+    int x;
+    int y;
+    int components;
+    unsigned char* rawData = stbi_load(filename.c_str(), &x, &y, &components, 4);
+
+    if (rawData == nullptr) throw std::runtime_error("Could not read image file");
+
+    std::vector<char> data((size_t)x * y * components);
+    memcpy(data.data(), rawData, data.size());
+
+    stbi_image_free(rawData);
+
+    return ImageAsset(x, y, std::move(data));
 }
 
 vk::raii::ShaderModule SEngine::createShaderModule(vk::raii::Device& device, const std::vector<char>& byteCode) {
