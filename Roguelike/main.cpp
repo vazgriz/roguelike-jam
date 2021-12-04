@@ -36,6 +36,7 @@ int main() {
     SEngine::Camera camera(4.0f, 3.0f);
     Tiled map("data/sample_map.json");
     renderNode.setCamera(camera);
+    renderNode.loadMap(map);
 
     engine.run();
 }

@@ -18,6 +18,7 @@ public:
 
     void transfer(Buffer& buffer, vk::DeviceSize size, vk::DeviceSize offset, const void* data);
     void transfer(Image& image, vk::Offset3D offset, vk::Extent3D extent, vk::ImageSubresourceLayers subresourceLayers, const void* data);
+    void transfer(Image& image, vk::Format format, std::vector<vk::BufferImageCopy>& copies, vk::Extent3D totalExtent, const void* data);
 
 private:
     struct BufferInfo {

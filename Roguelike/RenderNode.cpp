@@ -43,6 +43,70 @@ void RenderNode::setCamera(SEngine::Camera& camera) {
     m_camera = &camera;
 }
 
+void RenderNode::loadMap(Tiled& tiled) {
+    for (auto& tilesheet : tiled.map().tilesets) {
+        SEngine::ImageAsset asset = SEngine::readImage(tilesheet.image);
+        int32_t extendedImageWidth = tilesheet.imageWidth - (2 * tilesheet.margin) + tilesheet.spacing;
+        int32_t extendedImageHeight = tilesheet.imageHeight - (2 * tilesheet.margin) + tilesheet.spacing;
+        int32_t tileStepX = tilesheet.tileWidth + tilesheet.spacing;
+        int32_t tileStepY = tilesheet.tileHeight + tilesheet.spacing;
+
+        int32_t tileCountX = extendedImageWidth / tileStepX;
+        int32_t tileCountY = extendedImageHeight / tileStepY;
+
+        std::vector<vk::BufferImageCopy> copies;
+        uint32_t tileIndex = 0;
+
+        vk::Extent3D tileExtent = {
+            static_cast<uint32_t>(tilesheet.tileWidth),
+            static_cast<uint32_t>(tilesheet.tileHeight),
+            1
+        };
+
+        for (int32_t y = 0; y < tileCountY; y++) {
+            for (int32_t x = 0; x < tileCountX; x++) {
+                glm::ivec2 tileOffset = {
+                    tilesheet.margin + x * tileStepX,
+                    tilesheet.margin + y * tileStepY
+                };
+
+                vk::BufferImageCopy copy = {};
+                copy.imageExtent = tileExtent;
+                copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+                copy.imageSubresource.baseArrayLayer = tileIndex;
+                copy.imageSubresource.layerCount = 1;
+                copy.imageSubresource.mipLevel = 0;
+                copy.bufferOffset = (((size_t)tilesheet.imageWidth * tileOffset.y) + (tileOffset.x)) * SEngine::getFormatSize(vk::Format::eR8G8B8A8Unorm);
+
+                copies.push_back(copy);
+                tileIndex++;
+            }
+        }
+
+        vk::ImageCreateInfo info = {};
+        info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+        info.imageType = vk::ImageType::e2D;
+        info.format = vk::Format::eR8G8B8A8Unorm;
+        info.extent = tileExtent;
+        info.arrayLayers = tileIndex;
+        info.mipLevels = 1;
+        info.samples = vk::SampleCountFlagBits::e1;
+
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        auto& image = m_spritesheets.emplace_back(*m_engine, info, allocInfo);
+
+        vk::Extent3D totalExtent = {
+            static_cast<uint32_t>(tilesheet.imageWidth),
+            static_cast<uint32_t>(tilesheet.imageHeight),
+            1
+        };
+
+        m_transferNode->transfer(image, vk::Format::eR8G8B8A8Unorm, copies, totalExtent, asset.data());
+    }
+}
+
 void RenderNode::preRender(uint32_t currentFrame) {
     if (m_camera != nullptr) {
         m_uniform.projectionMatrix = m_camera->projection();

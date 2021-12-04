@@ -7,11 +7,14 @@
 #include <entt/signal/sigh.hpp>
 #include <glm/glm.hpp>
 
+#include "Tiled/TiledReader.h"
+
 class RenderNode : public SEngine::RenderGraph::Node {
 public:
     RenderNode(SEngine::Engine& engine, SEngine::RenderGraph& graph, SEngine::AcquireNode& acquireNode, SEngine::TransferNode& transferNode);
 
     void setCamera(SEngine::Camera& camera);
+    void loadMap(Tiled& tiled);
 
     SEngine::RenderGraph::BufferUsage& bufferUsage() { return *m_bufferUsage; }
     SEngine::RenderGraph::ImageUsage& imageUsage() { return *m_imageUsage; }
@@ -26,6 +29,8 @@ private:
     SEngine::AcquireNode* m_acquireNode;
     SEngine::TransferNode* m_transferNode;
     SEngine::Camera* m_camera;
+
+    std::vector<SEngine::Image> m_spritesheets;
 
     std::unique_ptr<vk::raii::RenderPass> m_renderPass;
     std::vector<vk::raii::Framebuffer> m_framebuffers;

@@ -125,7 +125,7 @@ void TransferNode::transfer(Buffer& buffer, vk::DeviceSize size, vk::DeviceSize 
 
 void TransferNode::transfer(Image& image, vk::Offset3D offset, vk::Extent3D extent, vk::ImageSubresourceLayers subresourceLayers, const void* data) {
     size_t size = (size_t)extent.width * (size_t)extent.height * (size_t)extent.depth * getFormatSize(image.format());
-    if (size == 0) return;
+    if (size == 0) throw std::runtime_error("Extent must be non zero");
     uint32_t currentFrame = m_renderGraph->currentFrame();
     m_ptr = align(m_ptr, 4);
     char* ptr = static_cast<char*>(m_stagingBufferPtrs[currentFrame]) + m_ptr;
@@ -153,5 +153,43 @@ void TransferNode::transfer(Image& image, vk::Offset3D offset, vk::Extent3D exte
         m_imageUsage->sync(image, subresource);
     } else {
         m_syncImageQueue.push({ &image, size, subresourceLayers });
+    }
+}
+
+void TransferNode::transfer(Image& image, vk::Format format, std::vector<vk::BufferImageCopy>& copies, vk::Extent3D totalExtent, const void* data) {
+    size_t size = (size_t)totalExtent.width * (size_t)totalExtent.height * (size_t)totalExtent.depth * getFormatSize(format);
+    if (size == 0) throw std::runtime_error("Extent must be non zero");
+    uint32_t currentFrame = m_renderGraph->currentFrame();
+    m_ptr = align(m_ptr, 4);
+    char* ptr = static_cast<char*>(m_stagingBufferPtrs[currentFrame]) + m_ptr;
+
+    memcpy(ptr, data, size);
+    size_t bufferStart = m_ptr;
+    m_ptr += size;
+
+    for (size_t i = 0; i < copies.size(); i++) {
+        vk::BufferImageCopy copy = copies[i];
+        vk::ImageSubresourceLayers subresourceLayers = copy.imageSubresource;
+
+        copy.bufferRowLength = totalExtent.width;
+        copy.bufferImageHeight = totalExtent.height;
+        copy.bufferOffset += bufferStart;
+
+        size_t localSize = (size_t)copy.imageExtent.width * copy.imageExtent.height * copy.imageExtent.depth * getFormatSize(format);
+
+        m_imageCopies.push_back({ &image.image(), copy });
+
+        if (m_preRenderDone) {
+            vk::ImageSubresourceRange subresource = {};
+            subresource.aspectMask = subresourceLayers.aspectMask;
+            subresource.baseArrayLayer = subresourceLayers.baseArrayLayer;
+            subresource.layerCount = subresourceLayers.layerCount;
+            subresource.baseMipLevel = subresourceLayers.mipLevel;
+            subresource.levelCount = 1;
+
+            m_imageUsage->sync(image, subresource);
+        } else {
+            m_syncImageQueue.push({ &image, localSize, subresourceLayers });
+        }
     }
 }

@@ -11,6 +11,7 @@ ImageState::ImageState(Engine* engine, const vk::ImageCreateInfo& info, vk::raii
     this->allocation = allocation;
     this->extent = info.extent;
     this->format = info.format;
+    this->arrayLayers = info.arrayLayers;
 }
 
 ImageState::ImageState(ImageState&& other) noexcept : image(std::move(other.image)) {
