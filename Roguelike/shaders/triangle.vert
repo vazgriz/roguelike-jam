@@ -7,9 +7,10 @@ layout(location = 0) out vec3 fragUV;
 
 layout(set = 0, binding = 0) uniform UniformData {
     mat4 proj;
+    mat4 view;
 } ubo;
 
 void main() {
-    gl_Position = ubo.proj * vec4(inPosition, 1.0);
+    gl_Position = ubo.proj * ubo.view * vec4(inPosition, 1.0);
     fragUV = inUV;
 }

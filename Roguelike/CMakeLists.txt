@@ -17,6 +17,8 @@ target_sources("Roguelike"
     "Tiled/TiledReader.cpp"
     "Decompress.h"
     "Decompress.cpp"
+    "Freecam.h"
+    "Freecam.cpp"
 )
 target_link_libraries("Roguelike"
     "SimpleEngine"

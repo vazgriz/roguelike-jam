@@ -63,6 +63,7 @@ private:
 
     struct UniformData {
         glm::mat4 projectionMatrix;
+        glm::mat4 viewMatrix;
     };
 
     UniformData m_uniform;

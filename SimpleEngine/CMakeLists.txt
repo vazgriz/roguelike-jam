@@ -49,6 +49,8 @@ target_sources("SimpleEngine"
     "include/SimpleEngine/ImageAsset.h"
     "src/ImageAsset.cpp"
     "src/stb.cpp"
+    "include/SimpleEngine/Input.h"
+    "src/Input.cpp"
 )
 
 # Download automatically, you can also just copy the conan.cmake file

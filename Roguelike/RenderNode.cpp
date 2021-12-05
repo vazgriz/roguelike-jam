@@ -121,7 +121,8 @@ void RenderNode::loadMap(Tiled& tiled) {
 
 void RenderNode::preRender(uint32_t currentFrame) {
     if (m_camera != nullptr) {
-        m_uniform.projectionMatrix = m_camera->projection();
+        m_uniform.projectionMatrix = m_camera->projectionMatrix();
+        m_uniform.viewMatrix = m_camera->viewMatrix();
     }
 
     m_transferNode->transfer(*m_uniformBuffer, sizeof(UniformData), 0, &m_uniform);

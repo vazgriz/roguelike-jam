@@ -76,14 +76,8 @@ void Engine::run() {
         return a->getPriority() < b->getPriority();
     });
 
-    bool shouldRender = true;
-
     while (true) {
-        if (shouldRender) {
-            glfwPollEvents();
-        } else {
-            glfwWaitEvents();
-        }
+        m_window->update();
 
         if (m_window->shouldClose()) {
             break;
@@ -96,10 +90,7 @@ void Engine::run() {
         }
 
         if (m_graphics->swapchain() != nullptr) {
-            shouldRender = true;
             m_renderGraph->execute();
-        } else {
-            shouldRender = false;
         }
     }
 

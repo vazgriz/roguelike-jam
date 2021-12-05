@@ -8,6 +8,7 @@
 
 #include "RenderNode.h"
 #include "Tiled/TiledReader.h"
+#include "Freecam.h"
 
 int main() {
     SEngine::Engine engine;
@@ -31,10 +32,16 @@ int main() {
 
     renderGraph.bake();
 
+    SEngine::Camera camera(800, 600);
+    camera.setZoom(32);
+
     SEngine::FPSCounter fpsCounter(window, "Roguelike");
     engine.addSystem(fpsCounter);
 
-    SEngine::Camera camera(4.0f, 3.0f);
+    Freecam freecam(window, camera);
+    freecam.setSpeed(50);
+    engine.addSystem(freecam);
+
     Tiled map("data/sample_map.json");
     renderNode.setCamera(camera);
     renderNode.loadMap(map);
