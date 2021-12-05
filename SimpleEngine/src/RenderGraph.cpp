@@ -109,7 +109,7 @@ void RenderGraph::BufferEdge::recordSourceBarriers(uint32_t currentFrame, vk::ra
     }
 
     if (m_barriers.size() > 0) {
-        commandBuffer.pipelineBarrier(m_sourceUsage->stageFlags(), m_destUsage->stageFlags(), {},
+        commandBuffer.pipelineBarrier(sourceStageFlags, destStageFlags, {},
             nullptr,
             m_barriers,
             nullptr
@@ -154,7 +154,7 @@ void RenderGraph::BufferEdge::recordDestBarriers(uint32_t currentFrame, vk::raii
     }
 
     if (m_barriers.size() > 0) {
-        commandBuffer.pipelineBarrier(m_sourceUsage->stageFlags(), m_destUsage->stageFlags(), {},
+        commandBuffer.pipelineBarrier(sourceStageFlags, destStageFlags, {},
             nullptr,
             m_barriers,
             nullptr
@@ -212,7 +212,7 @@ void RenderGraph::ImageEdge::recordSourceBarriers(uint32_t currentFrame, vk::rai
     }
 
     if (m_barriers.size() > 0) {
-        commandBuffer.pipelineBarrier(m_sourceUsage->stageFlags(), m_destUsage->stageFlags(), {},
+        commandBuffer.pipelineBarrier(sourceStageFlags, destStageFlags, {},
             nullptr,
             nullptr,
             m_barriers
@@ -258,7 +258,7 @@ void RenderGraph::ImageEdge::recordDestBarriers(uint32_t currentFrame, vk::raii:
     }
 
     if (m_barriers.size() > 0) {
-        commandBuffer.pipelineBarrier(m_sourceUsage->stageFlags(), m_destUsage->stageFlags(), {},
+        commandBuffer.pipelineBarrier(sourceStageFlags, destStageFlags, {},
             nullptr,
             nullptr,
             m_barriers

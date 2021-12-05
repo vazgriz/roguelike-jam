@@ -122,6 +122,9 @@ void Tiled::loadLayers(std::vector<Layer>& layers, nlohmann::json& json) {
         }
 
         layer.data = std::move(data);
+        layer.width = item["width"].get<int32_t>();
+        layer.height = item["height"].get<int32_t>();
+        layer.id = item["id"].get<int32_t>();
 
         layers.emplace_back(std::move(layer));
     }

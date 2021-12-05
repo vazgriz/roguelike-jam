@@ -19,13 +19,10 @@ TransferNode::TransferNode(Engine& engine, RenderGraph& graph)
 }
 
 void TransferNode::preRender(uint32_t currentFrame) {
-    m_ptr = 0;
-
     while (m_syncBufferQueue.size() > 0) {
         auto& item = m_syncBufferQueue.front();
 
         m_bufferUsage->sync(*item.buffer, item.size, item.offset);
-        m_ptr = align(m_ptr + item.size, 4);
 
         m_syncBufferQueue.pop();
     }
@@ -41,7 +38,6 @@ void TransferNode::preRender(uint32_t currentFrame) {
         subresource.levelCount = 1;
 
         m_imageUsage->sync(*item.image, subresource);
-        m_ptr = align(m_ptr + item.size, 4);
 
         m_syncImageQueue.pop();
     }
@@ -81,6 +77,7 @@ void TransferNode::render(uint32_t currentFrame, vk::raii::CommandBuffer& comman
     m_bufferCopies.clear();
     m_imageCopies.clear();
     m_preRenderDone = false;
+    m_ptr = 0;
 }
 
 void TransferNode::createStaging() {

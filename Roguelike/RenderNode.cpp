@@ -1,17 +1,6 @@
 #include "RenderNode.h"
 #include <SimpleEngine/SimpleEngine.h>
 
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
-};
-
-const std::vector<Vertex> vertexData = {
-    {{  0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }},
-    {{  1.0f,  1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }},
-    {{ -1.0f,  1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }}
-};
-
 RenderNode::RenderNode(SEngine::Engine& engine, SEngine::RenderGraph& graph, SEngine::AcquireNode& acquireNode, SEngine::TransferNode& transferNode)
     : SEngine::RenderGraph::Node(graph, engine.getGraphics().graphicsQueue()) {
     m_engine = &engine;
@@ -25,15 +14,18 @@ RenderNode::RenderNode(SEngine::Engine& engine, SEngine::RenderGraph& graph, SEn
         *this, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eColorAttachmentOutput
     );
 
+    m_textureUsage = std::make_unique<SEngine::RenderGraph::ImageUsage>(
+        *this, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eFragmentShader
+    );
+
     createRenderPass();
     createFramebuffers();
+    createUniformBuffer();
+    createSampler();
     createDescriptorLayout();
     createDescriptorPool();
     createDescriptor();
-    createUniformBuffer();
-    updateUniformBuffer();
     createPipeline();
-    createVertexData();
 
     m_swapchainConnection = engine.getGraphics().onSwapchainChanged().connect<&RenderNode::recreateResources>(this);
     m_uniform = {};
@@ -44,6 +36,8 @@ void RenderNode::setCamera(SEngine::Camera& camera) {
 }
 
 void RenderNode::loadMap(Tiled& tiled) {
+    m_map = &tiled.map();
+
     for (auto& tilesheet : tiled.map().tilesets) {
         SEngine::ImageAsset asset = SEngine::readImage(tilesheet.image);
         int32_t extendedImageWidth = tilesheet.imageWidth - (2 * tilesheet.margin) + tilesheet.spacing;
@@ -76,17 +70,19 @@ void RenderNode::loadMap(Tiled& tiled) {
                 copy.imageSubresource.baseArrayLayer = tileIndex;
                 copy.imageSubresource.layerCount = 1;
                 copy.imageSubresource.mipLevel = 0;
-                copy.bufferOffset = (((size_t)tilesheet.imageWidth * tileOffset.y) + (tileOffset.x)) * SEngine::getFormatSize(vk::Format::eR8G8B8A8Unorm);
+                copy.bufferOffset = (((size_t)tilesheet.imageWidth * tileOffset.y) + (tileOffset.x)) * SEngine::getFormatSize(vk::Format::eR8G8B8A8Srgb);
 
                 copies.push_back(copy);
                 tileIndex++;
             }
         }
 
+        vk::Format format = vk::Format::eR8G8B8A8Srgb;
+
         vk::ImageCreateInfo info = {};
         info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
         info.imageType = vk::ImageType::e2D;
-        info.format = vk::Format::eR8G8B8A8Unorm;
+        info.format = format;
         info.extent = tileExtent;
         info.arrayLayers = tileIndex;
         info.mipLevels = 1;
@@ -103,8 +99,24 @@ void RenderNode::loadMap(Tiled& tiled) {
             1
         };
 
-        m_transferNode->transfer(image, vk::Format::eR8G8B8A8Unorm, copies, totalExtent, asset.data());
+        m_transferNode->transfer(image, format, copies, totalExtent, asset.data());
+
+        vk::ImageViewCreateInfo viewInfo = {};
+        viewInfo.image = image.image();
+        viewInfo.format = format;
+        viewInfo.viewType = vk::ImageViewType::e2DArray;
+        viewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = tileIndex;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+
+        m_spritesheetViews.emplace_back(m_graphics->device(), viewInfo);
     }
+
+    updateDescriptor();
+    createVertexData();
+    createVertexBuffer();
 }
 
 void RenderNode::preRender(uint32_t currentFrame) {
@@ -113,9 +125,19 @@ void RenderNode::preRender(uint32_t currentFrame) {
     }
 
     m_transferNode->transfer(*m_uniformBuffer, sizeof(UniformData), 0, &m_uniform);
+
+    for (auto& spritesheet : m_spritesheets) {
+        vk::ImageSubresourceRange subresource = {};
+        subresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        subresource.layerCount = spritesheet.arrayLayers();
+        subresource.levelCount = 1;
+
+        m_textureUsage->sync(spritesheet, subresource);
+    }
 }
 
 void RenderNode::render(uint32_t currentFrame, vk::raii::CommandBuffer& commandBuffer) {
+    if (m_vertexBuffer == nullptr) return;
     uint32_t imageIndex = m_acquireNode->swapchainIndex();
     vk::ClearValue clear = {};
 
@@ -146,7 +168,7 @@ void RenderNode::render(uint32_t currentFrame, vk::raii::CommandBuffer& commandB
     commandBuffer.setViewport(0, viewport);
     commandBuffer.setScissor(0, scissor);
 
-    commandBuffer.draw(3, 1, 0, 0);
+    commandBuffer.draw(static_cast<uint32_t>(m_vertexData.size()), 1, 0, 0);
 
     commandBuffer.endRenderPass();
 }
@@ -209,28 +231,74 @@ void RenderNode::createFramebuffers() {
     }
 }
 
+void RenderNode::createUniformBuffer() {
+    vk::BufferCreateInfo info = {};
+    info.size = sizeof(UniformData);
+    info.usage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    m_uniformBuffer = std::make_unique<SEngine::Buffer>(*m_engine, info, allocInfo);
+}
+
+void RenderNode::createSampler() {
+    vk::SamplerCreateInfo info = {};
+    info.addressModeU = vk::SamplerAddressMode::eRepeat;
+    info.addressModeV = vk::SamplerAddressMode::eRepeat;
+    info.magFilter = vk::Filter::eNearest;
+    info.minFilter = vk::Filter::eNearest;
+
+    m_sampler = std::make_unique<vk::raii::Sampler>(m_graphics->device(), info);
+}
+
 void RenderNode::createDescriptorLayout() {
-    vk::DescriptorSetLayoutBinding binding = {};
-    binding.descriptorType = vk::DescriptorType::eUniformBuffer;
-    binding.descriptorCount = 1;
-    binding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+    vk::DescriptorSetLayoutBinding binding0 = {};
+    binding0.descriptorType = vk::DescriptorType::eUniformBuffer;
+    binding0.descriptorCount = 1;
+    binding0.stageFlags = vk::ShaderStageFlagBits::eVertex;
+    binding0.binding = 0;
+
+    vk::DescriptorSetLayoutBinding binding1 = {};
+    binding1.descriptorType = vk::DescriptorType::eSampler;
+    binding1.descriptorCount = 1;
+    binding1.stageFlags = vk::ShaderStageFlagBits::eFragment;
+    binding1.binding = 1;
+
+    vk::DescriptorSetLayoutBinding binding2 = {};
+    binding2.descriptorType = vk::DescriptorType::eSampledImage;
+    binding2.descriptorCount = 1;
+    binding2.stageFlags = vk::ShaderStageFlagBits::eFragment;
+    binding2.binding = 2;
+
+    vk::DescriptorSetLayoutBinding bindings[] = { binding0, binding1, binding2 };
 
     vk::DescriptorSetLayoutCreateInfo info = {};
-    info.bindingCount = 1;
-    info.pBindings = &binding;
+    info.bindingCount = 3;
+    info.pBindings = bindings;
 
     m_descriptorLayout = std::make_unique<vk::raii::DescriptorSetLayout>(m_graphics->device(), info);
 }
 
 void RenderNode::createDescriptorPool() {
-    vk::DescriptorPoolSize poolSize = {};
-    poolSize.descriptorCount = 1;
-    poolSize.type = vk::DescriptorType::eUniformBuffer;
+    vk::DescriptorPoolSize poolSize0 = {};
+    poolSize0.descriptorCount = 1;
+    poolSize0.type = vk::DescriptorType::eUniformBuffer;
+
+    vk::DescriptorPoolSize poolSize1 = {};
+    poolSize1.descriptorCount = 1;
+    poolSize1.type = vk::DescriptorType::eSampler;
+
+    vk::DescriptorPoolSize poolSize2 = {};
+    poolSize2.descriptorCount = 1;
+    poolSize2.type = vk::DescriptorType::eSampledImage;
+
+    vk::DescriptorPoolSize poolSizes[] = { poolSize0, poolSize1, poolSize2 };
 
     vk::DescriptorPoolCreateInfo info = {};
     info.maxSets = 1;
-    info.poolSizeCount = 1;
-    info.pPoolSizes = &poolSize;
+    info.poolSizeCount = 3;
+    info.pPoolSizes = poolSizes;
 
     m_descriptorPool = std::make_unique<vk::raii::DescriptorPool>(m_graphics->device(), info);
 }
@@ -245,29 +313,40 @@ void RenderNode::createDescriptor() {
     m_descriptor = std::make_unique<vk::DescriptorSet>(std::move(descriptors[0]));
 }
 
-void RenderNode::createUniformBuffer() {
-    vk::BufferCreateInfo info = {};
-    info.size = sizeof(UniformData);
-    info.usage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst;
+void RenderNode::updateDescriptor() {
+    vk::DescriptorBufferInfo bufferInfo = {};
+    bufferInfo.buffer = m_uniformBuffer->buffer();
+    bufferInfo.range = m_uniformBuffer->size();
 
-    VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    vk::WriteDescriptorSet write0 = {};
+    write0.descriptorCount = 1;
+    write0.descriptorType = vk::DescriptorType::eUniformBuffer;
+    write0.dstSet = *m_descriptor;
+    write0.dstBinding = 0;
+    write0.pBufferInfo = &bufferInfo;
 
-    m_uniformBuffer = std::make_unique<SEngine::Buffer>(*m_engine, info, allocInfo);
-}
+    vk::DescriptorImageInfo samplerInfo = {};
+    samplerInfo.sampler = **m_sampler;
 
-void RenderNode::updateUniformBuffer() {
-    vk::DescriptorBufferInfo info = {};
-    info.buffer = m_uniformBuffer->buffer();
-    info.range = m_uniformBuffer->size();
+    vk::WriteDescriptorSet write1 = {};
+    write1.descriptorCount = 1;
+    write1.descriptorType = vk::DescriptorType::eSampler;
+    write1.dstSet = *m_descriptor;
+    write1.dstBinding = 1;
+    write1.pImageInfo = &samplerInfo;
 
-    vk::WriteDescriptorSet write = {};
-    write.descriptorCount = 1;
-    write.descriptorType = vk::DescriptorType::eUniformBuffer;
-    write.dstSet = *m_descriptor;
-    write.pBufferInfo = &info;
+    vk::DescriptorImageInfo imageInfo = {};
+    imageInfo.imageView = *m_spritesheetViews[0];
+    imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-    m_graphics->device().updateDescriptorSets(write, nullptr);
+    vk::WriteDescriptorSet write2 = {};
+    write2.descriptorCount = 1;
+    write2.descriptorType = vk::DescriptorType::eSampledImage;
+    write2.dstSet = *m_descriptor;
+    write2.dstBinding = 2;
+    write2.pImageInfo = &imageInfo;
+
+    m_graphics->device().updateDescriptorSets({ write0, write1, write2 }, nullptr);
 }
 
 vk::raii::ShaderModule RenderNode::createShader(const std::string& filename) {
@@ -309,7 +388,7 @@ void RenderNode::createPipeline() {
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
     attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;;
-    attributeDescriptions[1].offset = offsetof(Vertex, color);
+    attributeDescriptions[1].offset = offsetof(Vertex, uv);
 
     vk::PipelineVertexInputStateCreateInfo vertexInput = {};
     vertexInput.vertexBindingDescriptionCount = 1;
@@ -336,6 +415,13 @@ void RenderNode::createPipeline() {
         | vk::ColorComponentFlagBits::eG
         | vk::ColorComponentFlagBits::eB
         | vk::ColorComponentFlagBits::eA;
+    colorBlendAttachment.blendEnable = true;
+    colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+    colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
+    colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+    colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+    colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
 
     vk::PipelineColorBlendStateCreateInfo colorBlending = {};
     colorBlending.attachmentCount = 1;
@@ -376,8 +462,54 @@ void RenderNode::createPipeline() {
 }
 
 void RenderNode::createVertexData() {
+    for (auto& layer : m_map->layers) {
+        for (int32_t y = 0; y < layer.height; y++) {
+            for (int32_t x = 0; x < layer.width; x++) {
+                glm::vec3 offset = { x, y, 0 };
+
+                int32_t index = (y * layer.width) + x;
+                int32_t id = layer.data[index].id - 1;
+                int32_t depth = layer.id;
+
+                if (id < 0) {
+                    continue;
+                }
+
+                Vertex v1 = {
+                    glm::vec3{ 0, 0, depth } + offset,
+                    glm::vec3{ 0, 0, id }
+                };
+
+                Vertex v2 = {
+                    glm::vec3{ 1, 0, depth } + offset,
+                    glm::vec3{ 1, 0, id }
+                };
+
+                Vertex v3 = {
+                    glm::vec3{ 0, 1, depth } + offset,
+                    glm::vec3{ 0, 1, id }
+                };
+
+                Vertex v4 = {
+                    glm::vec3{ 1, 1, depth } + offset,
+                    glm::vec3{ 1, 1, id }
+                };
+
+                m_vertexData.push_back(v1);
+                m_vertexData.push_back(v2);
+                m_vertexData.push_back(v3);
+
+                m_vertexData.push_back(v2);
+                m_vertexData.push_back(v4);
+                m_vertexData.push_back(v3);
+            }
+        }
+    }
+}
+
+void RenderNode::createVertexBuffer() {
     vk::BufferCreateInfo info = {};
-    info.size = vertexData.size() * sizeof(Vertex);
+    info.size = m_vertexData.size() * sizeof(Vertex);
     info.usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst;
 
     VmaAllocationCreateInfo allocInfo = {};
@@ -385,5 +517,5 @@ void RenderNode::createVertexData() {
 
     m_vertexBuffer = std::make_unique<SEngine::Buffer>(*m_engine, info, allocInfo);
 
-    m_transferNode->transfer(*m_vertexBuffer, vertexData.size() * sizeof(Vertex), 0, vertexData.data());
+    m_transferNode->transfer(*m_vertexBuffer, m_vertexData.size() * sizeof(Vertex), 0, m_vertexData.data());
 }

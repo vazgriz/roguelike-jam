@@ -27,6 +27,7 @@ int main() {
     renderGraph.addEdge(SEngine::RenderGraph::ImageEdge(acquireNode.imageUsage(), renderNode.imageUsage()));
     renderGraph.addEdge(SEngine::RenderGraph::ImageEdge(renderNode.imageUsage(), presentNode.imageUsage()));
     renderGraph.addEdge(SEngine::RenderGraph::BufferEdge(transferNode.bufferUsage(), renderNode.bufferUsage()));
+    renderGraph.addEdge(SEngine::RenderGraph::ImageEdge(transferNode.imageUsage(), renderNode.textureUsage()));
 
     renderGraph.bake();
 
