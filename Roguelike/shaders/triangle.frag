@@ -7,5 +7,5 @@ layout(set = 0, binding = 1) uniform sampler s;
 layout(set = 0, binding = 2) uniform texture2DArray t;
 
 void main() {
-    outColor = vec4(texture(sampler2DArray(t, s), inUV).rgb, 1.0);
+    outColor = vec4(texture(sampler2DArray(t, s), inUV));
 }
