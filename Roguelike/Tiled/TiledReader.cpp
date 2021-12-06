@@ -14,46 +14,92 @@ Tiled::LayerData::LayerData(uint32_t dataRaw) {
     flipDiagonal = (dataRaw & 0x20000000) != 0;
 }
 
-Tiled::Tiled(const std::string& path) {
-    std::cout << "Reading Tiled map: " << path << "\n";
-    std::ifstream file(path);
-    nlohmann::json data;
-    file >> data;
-
-    loadMap(data);
-
-    std::cout << "  Loaded map: " << m_map.width << "x" << m_map.height << ", " << m_map.layers.size() << " layers\n";
+Tiled::Tiled(const std::string& root) {
+    m_root = root + "/";
 }
 
-void Tiled::loadMap(nlohmann::json& json) {
-    m_map.width = json["width"].get<int32_t>();
-    m_map.height = json["height"].get<int32_t>();
-    m_map.tileWidth = json["tilewidth"].get<int32_t>();
-    m_map.tileHeight = json["tileheight"].get<int32_t>();
+Tiled::Tileset& Tiled::loadTileset(const std::string& path) {
+    std::ifstream file(m_root + path);
+    nlohmann::json json;
+    file >> json;
 
-    loadTilesets(m_map.tilesets, json["tilesets"]);
-    loadLayers(m_map.layers, json["layers"]);
+    return loadTileset(path, json);
 }
 
-void Tiled::loadTilesets(std::vector<Tileset>& tilesets, nlohmann::json& json) {
+Tiled::Tileset Tiled::loadTileset(nlohmann::json& json) {
+    Tileset tileset = {};
+
+    tileset.name = json["name"].get<std::string>();
+    tileset.columns = json["columns"].get<int32_t>();
+    tileset.image = json["image"].get<std::string>();
+    tileset.imageWidth = json["imagewidth"].get<int32_t>();
+    tileset.imageHeight = json["imageheight"].get<int32_t>();
+    tileset.margin = json["margin"].get<int32_t>();
+    tileset.spacing = json["spacing"].get<int32_t>();
+    tileset.tileWidth = json["tilewidth"].get<int32_t>();
+    tileset.tileHeight = json["tileheight"].get<int32_t>();
+    tileset.tileCount = json["tilecount"].get<int32_t>();
+
+    loadTiles(tileset.tiles, json["tiles"]);
+
+    return tileset;
+}
+
+Tiled::Tileset& Tiled::loadTileset(const std::string& name, nlohmann::json& json) {
+    auto it = m_tilesetMap.find(name);
+
+    if (it != m_tilesetMap.end()) {
+        return *it->second;
+    }
+
+    Tileset& tileset = *m_tilesets.emplace_back(std::make_unique<Tileset>());
+
+    tileset = loadTileset(json);
+
+    m_tilesetMap.insert({ name, &tileset });
+
+    return tileset;
+}
+
+Tiled::Map& Tiled::loadMap(const std::string& path) {
+    std::ifstream file(m_root + path);
+    nlohmann::json json;
+    file >> json;
+
+    return loadMap(json);
+}
+
+Tiled::Map& Tiled::loadMap(nlohmann::json& json) {
+    Map& map = *m_maps.emplace_back(std::make_unique<Map>());
+    map.width = json["width"].get<int32_t>();
+    map.height = json["height"].get<int32_t>();
+    map.tileWidth = json["tilewidth"].get<int32_t>();
+    map.tileHeight = json["tileheight"].get<int32_t>();
+
+    loadMapTilesets(map.tilesets, json["tilesets"]);
+    loadMapLayers(map.layers, json["layers"]);
+
+    return map;
+}
+
+void Tiled::loadMapTilesets(std::vector<Tileset>& tilesets, nlohmann::json& json) {
     for (auto& item : json) {
-        Tileset tileset = {};
+        auto& sourcePathJSON = item["source"];
 
-        tileset.name = item["name"].get<std::string>();
-        tileset.columns = item["columns"].get<int32_t>();
-        tileset.firstGID = item["firstgid"].get<int32_t>();
-        tileset.image = item["image"].get<std::string>();
-        tileset.imageWidth = item["imagewidth"].get<int32_t>();
-        tileset.imageHeight = item["imageheight"].get<int32_t>();
-        tileset.margin = item["margin"].get<int32_t>();
-        tileset.spacing = item["spacing"].get<int32_t>();
-        tileset.tileWidth = item["tilewidth"].get<int32_t>();
-        tileset.tileHeight = item["tileheight"].get<int32_t>();
-        tileset.tileCount = item["tilecount"].get<int32_t>();
+        if (sourcePathJSON.is_null()) {
+            Tileset tileset = loadTileset(item);
+            tilesets.push_back(tileset);
+        } else {
+            std::string path = sourcePathJSON.get<std::string>();
+            std::ifstream file(m_root + path);
+            nlohmann::json sourceJSON;
+            file >> sourceJSON;
 
-        loadTiles(tileset.tiles, item["tiles"]);
+            Tileset tileset = loadTileset(path, sourceJSON);
+            tileset.firstGID = item["firstgid"].get<int32_t>();
 
-        tilesets.push_back(tileset);
+            tilesets.push_back(tileset);
+        }
     }
 }
 
@@ -66,7 +112,7 @@ void Tiled::loadTiles(std::vector<Tile>& tiles, nlohmann::json& json) {
     }
 }
 
-void Tiled::loadLayers(std::vector<Layer>& layers, nlohmann::json& json) {
+void Tiled::loadMapLayers(std::vector<Layer>& layers, nlohmann::json& json) {
     for (auto& item : json) {
         Layer layer = {};
         auto compressionJson = item["compression"];

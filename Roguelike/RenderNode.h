@@ -14,7 +14,7 @@ public:
     RenderNode(SEngine::Engine& engine, SEngine::RenderGraph& graph, SEngine::AcquireNode& acquireNode, SEngine::TransferNode& transferNode);
 
     void setCamera(SEngine::Camera& camera);
-    void loadMap(Tiled& tiled);
+    void loadMap(Tiled::Tileset& tileset, Tiled::Map& map);
 
     SEngine::RenderGraph::BufferUsage& bufferUsage() { return *m_bufferUsage; }
     SEngine::RenderGraph::ImageUsage& imageUsage() { return *m_imageUsage; }

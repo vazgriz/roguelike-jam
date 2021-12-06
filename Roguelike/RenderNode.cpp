@@ -35,84 +35,82 @@ void RenderNode::setCamera(SEngine::Camera& camera) {
     m_camera = &camera;
 }
 
-void RenderNode::loadMap(Tiled& tiled) {
-    m_map = &tiled.map();
+void RenderNode::loadMap(Tiled::Tileset& tileset, Tiled::Map& map) {
+    m_map = &map;
 
-    for (auto& tilesheet : tiled.map().tilesets) {
-        SEngine::ImageAsset asset = SEngine::readImage(tilesheet.image);
-        int32_t extendedImageWidth = tilesheet.imageWidth - (2 * tilesheet.margin) + tilesheet.spacing;
-        int32_t extendedImageHeight = tilesheet.imageHeight - (2 * tilesheet.margin) + tilesheet.spacing;
-        int32_t tileStepX = tilesheet.tileWidth + tilesheet.spacing;
-        int32_t tileStepY = tilesheet.tileHeight + tilesheet.spacing;
+    SEngine::ImageAsset asset = SEngine::readImage("data/" + tileset.image);
+    int32_t extendedImageWidth = tileset.imageWidth - (2 * tileset.margin) + tileset.spacing;
+    int32_t extendedImageHeight = tileset.imageHeight - (2 * tileset.margin) + tileset.spacing;
+    int32_t tileStepX = tileset.tileWidth + tileset.spacing;
+    int32_t tileStepY = tileset.tileHeight + tileset.spacing;
 
-        int32_t tileCountX = extendedImageWidth / tileStepX;
-        int32_t tileCountY = extendedImageHeight / tileStepY;
+    int32_t tileCountX = extendedImageWidth / tileStepX;
+    int32_t tileCountY = extendedImageHeight / tileStepY;
 
-        std::vector<vk::BufferImageCopy> copies;
-        uint32_t tileIndex = 0;
+    std::vector<vk::BufferImageCopy> copies;
+    uint32_t tileIndex = 0;
 
-        vk::Extent3D tileExtent = {
-            static_cast<uint32_t>(tilesheet.tileWidth),
-            static_cast<uint32_t>(tilesheet.tileHeight),
-            1
-        };
+    vk::Extent3D tileExtent = {
+        static_cast<uint32_t>(tileset.tileWidth),
+        static_cast<uint32_t>(tileset.tileHeight),
+        1
+    };
 
-        for (int32_t y = 0; y < tileCountY; y++) {
-            for (int32_t x = 0; x < tileCountX; x++) {
-                glm::ivec2 tileOffset = {
-                    tilesheet.margin + x * tileStepX,
-                    tilesheet.margin + y * tileStepY
-                };
+    for (int32_t y = 0; y < tileCountY; y++) {
+        for (int32_t x = 0; x < tileCountX; x++) {
+            glm::ivec2 tileOffset = {
+                tileset.margin + x * tileStepX,
+                tileset.margin + y * tileStepY
+            };
 
-                vk::BufferImageCopy copy = {};
-                copy.imageExtent = tileExtent;
-                copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-                copy.imageSubresource.baseArrayLayer = tileIndex;
-                copy.imageSubresource.layerCount = 1;
-                copy.imageSubresource.mipLevel = 0;
-                copy.bufferOffset = (((size_t)tilesheet.imageWidth * tileOffset.y) + (tileOffset.x)) * SEngine::getFormatSize(vk::Format::eR8G8B8A8Srgb);
+            vk::BufferImageCopy copy = {};
+            copy.imageExtent = tileExtent;
+            copy.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+            copy.imageSubresource.baseArrayLayer = tileIndex;
+            copy.imageSubresource.layerCount = 1;
+            copy.imageSubresource.mipLevel = 0;
+            copy.bufferOffset = (((size_t)tileset.imageWidth * tileOffset.y) + (tileOffset.x)) * SEngine::getFormatSize(vk::Format::eR8G8B8A8Srgb);
 
-                copies.push_back(copy);
-                tileIndex++;
-            }
+            copies.push_back(copy);
+            tileIndex++;
         }
-
-        vk::Format format = vk::Format::eR8G8B8A8Srgb;
-
-        vk::ImageCreateInfo info = {};
-        info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
-        info.imageType = vk::ImageType::e2D;
-        info.format = format;
-        info.extent = tileExtent;
-        info.arrayLayers = tileIndex;
-        info.mipLevels = 1;
-        info.samples = vk::SampleCountFlagBits::e1;
-
-        VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-        auto& image = m_spritesheets.emplace_back(*m_engine, info, allocInfo);
-
-        vk::Extent3D totalExtent = {
-            static_cast<uint32_t>(tilesheet.imageWidth),
-            static_cast<uint32_t>(tilesheet.imageHeight),
-            1
-        };
-
-        m_transferNode->transfer(image, format, copies, totalExtent, asset.data());
-
-        vk::ImageViewCreateInfo viewInfo = {};
-        viewInfo.image = image.image();
-        viewInfo.format = format;
-        viewInfo.viewType = vk::ImageViewType::e2DArray;
-        viewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = tileIndex;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-
-        m_spritesheetViews.emplace_back(m_graphics->device(), viewInfo);
     }
+
+    vk::Format format = vk::Format::eR8G8B8A8Srgb;
+
+    vk::ImageCreateInfo info = {};
+    info.usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst;
+    info.imageType = vk::ImageType::e2D;
+    info.format = format;
+    info.extent = tileExtent;
+    info.arrayLayers = tileIndex;
+    info.mipLevels = 1;
+    info.samples = vk::SampleCountFlagBits::e1;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    auto& image = m_spritesheets.emplace_back(*m_engine, info, allocInfo);
+
+    vk::Extent3D totalExtent = {
+        static_cast<uint32_t>(tileset.imageWidth),
+        static_cast<uint32_t>(tileset.imageHeight),
+        1
+    };
+
+    m_transferNode->transfer(image, format, copies, totalExtent, asset.data());
+
+    vk::ImageViewCreateInfo viewInfo = {};
+    viewInfo.image = image.image();
+    viewInfo.format = format;
+    viewInfo.viewType = vk::ImageViewType::e2DArray;
+    viewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = tileIndex;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+
+    m_spritesheetViews.emplace_back(m_graphics->device(), viewInfo);
 
     updateDescriptor();
     createVertexData();

@@ -42,9 +42,11 @@ int main() {
     freecam.setSpeed(50);
     engine.addSystem(freecam);
 
-    Tiled map("data/sample_map.json");
+    Tiled tiles("data");
+    auto& tileset = tiles.loadTileset("roguelike_tilesheet_main.json");
+    auto& map = tiles.loadMap("sample_map.json");
     renderNode.setCamera(camera);
-    renderNode.loadMap(map);
+    renderNode.loadMap(tileset, map);
 
     engine.run();
 }

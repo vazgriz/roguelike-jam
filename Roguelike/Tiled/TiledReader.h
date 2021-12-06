@@ -2,6 +2,7 @@
 #include <string>
 #include <optional>
 #include <nlohmann/json.hpp>
+#include <unordered_map>
 
 class Tiled {
 public:
@@ -59,20 +60,27 @@ public:
         std::vector<Tileset> tilesets;
     };
 
-    Tiled(const std::string& path);
+    Tiled(const std::string& root);
     Tiled(const Tiled& other) = delete;
     Tiled& operator = (const Tiled& other) = delete;
     Tiled(Tiled&& other) = default;
     Tiled& operator = (Tiled&& other) = default;
 
-    Map& map() { return m_map; }
+    Tileset& loadTileset(const std::string& path);
+    Map& loadMap(const std::string& path);
 
 private:
-    Map m_map;
+    std::string m_root;
+    std::vector<std::unique_ptr<Tileset>> m_tilesets;
+    std::unordered_map<std::string, Tileset*> m_tilesetMap;
+    std::vector<std::unique_ptr<Map>> m_maps;
 
-    void loadMap(nlohmann::json& json);
-    void loadTilesets(std::vector<Tileset>& tilesets, nlohmann::json& json);
+    Tileset loadTileset(nlohmann::json& json);
+    Tileset& loadTileset(const std::string& name, nlohmann::json& json);
+
+    Map& loadMap(nlohmann::json& json);
+    void loadMapTilesets(std::vector<Tileset>& tilesets, nlohmann::json& json);
     void loadTiles(std::vector<Tile>& tiles, nlohmann::json& json);
-    void loadLayers(std::vector<Layer>& layers, nlohmann::json& json);
+    void loadMapLayers(std::vector<Layer>& layers, nlohmann::json& json);
     std::vector<uint32_t> decompress(std::vector<char>& bytes);
 };
